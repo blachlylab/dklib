@@ -1,0 +1,9 @@
+{
+	"name": "dklib",
+	"description": "D Templates port of attractivechaos/klib",
+	"authors": ["James S. Blachly, MD <james.blachly@gmail.com"],
+	"homepage": "http://github.com/blachlylab",
+	"license": "MIT",
+	"dependencies": {
+	}
+}
