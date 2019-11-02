@@ -403,6 +403,7 @@ template kh_hash(T)
   @param  name  Name of the hash table [symbol]
  */
 //#define khash_t(name) kh_##name##_t
+// Moved into template khash(KT, VT)
 
 /*! @function
   @abstract     Initiate a hash table.
@@ -410,6 +411,7 @@ template kh_hash(T)
   @return       Pointer to the hash table [khash_t(name)*]
  */
 //#define kh_init(name) kh_init_##name()
+// Moved into template khash(KT, VT)
 
 /*! @function
   @abstract     Destroy a hash table.
@@ -417,6 +419,7 @@ template kh_hash(T)
   @param  h     Pointer to the hash table [khash_t(name)*]
  */
 //#define kh_destroy(name, h) kh_destroy_##name(h)
+// Moved into template khash(KT, VT)
 
 /*! @function
   @abstract     Reset a hash table without deallocating memory.
@@ -424,6 +427,7 @@ template kh_hash(T)
   @param  h     Pointer to the hash table [khash_t(name)*]
  */
 //#define kh_clear(name, h) kh_clear_##name(h)
+// Moved into template khash(KT, VT)
 
 /*! @function
   @abstract     Resize a hash table.
@@ -432,6 +436,7 @@ template kh_hash(T)
   @param  s     New size [khint_t]
  */
 //#define kh_resize(name, h, s) kh_resize_##name(h, s)
+// Moved into template khash(KT, VT)
 
 /*! @function
   @abstract     Insert a key to the hash table.
@@ -445,6 +450,7 @@ template kh_hash(T)
   @return       Iterator to the inserted element [khint_t]
  */
 //#define kh_put(name, h, k, r) kh_put_##name(h, k, r)
+// Moved into template khash(KT, VT)
 
 /*! @function
   @abstract     Retrieve a key from the hash table.
@@ -454,6 +460,7 @@ template kh_hash(T)
   @return       Iterator to the found element, or kh_end(h) if the element is absent [khint_t]
  */
 //#define kh_get(name, h, k) kh_get_##name(h, k)
+// Moved into template khash(KT, VT)
 
 /*! @function
   @abstract     Remove a key from the hash table.
@@ -462,6 +469,7 @@ template kh_hash(T)
   @param  k     Iterator to the element to be deleted [khint_t]
  */
 //#define kh_del(name, h, k) kh_del_##name(h, k)
+// Moved into template khash(KT, VT)
 
 /*! @function
   @abstract     Test whether a bucket contains data.
