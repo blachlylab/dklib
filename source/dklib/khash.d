@@ -132,6 +132,44 @@ template khash(KT, VT, bool kh_is_map = true)
             auto x = kh_get(&this, key);
             kh_del(&this, x);
         }
+
+        /// Return an InputRange over the keys.
+        /// Manipulating the hash table during iteration results in undefined behavior.
+        /// Returns: Voldemort type
+        auto byKey()
+        {
+            /** Manipulating the hash table during iteration results in undefined behavior */
+            struct KeyRange
+            {
+                kh_t* kh;
+                khint_t itr;
+                bool empty()    // non-const as may call popFront
+                {
+                    //return (this.itr == kh_end(this.kh));
+                    if (this.itr == kh_end(this.kh)) return true;
+                    // Handle the case of deleted keys
+                    else if (!kh_exists(this.kh, this.itr)) {
+                        while(!kh_exists(this.kh, this.itr)) {
+                            this.popFront();
+                            if (this.itr == kh_end(this.kh)) return true;
+                        }
+                        return false;
+                    }
+                    return false;
+                }
+                ref KT front()
+                {
+                    return kh.keys[this.itr];
+                }
+                void popFront()
+                {
+                    if(this.itr < kh_end(this.kh)) {
+                        this.itr++;
+                    }
+                }
+            }
+            return KeyRange(&this);
+        }
     }
   
     void kh_clear(kh_t* h);
@@ -301,32 +339,32 @@ template khash(KT, VT, bool kh_is_map = true)
         }
     }
 
-    auto kh_exists(kh_t* h, khint_t x)
+    auto kh_exists(const(kh_t)* h, khint_t x)
     {
         return (!__ac_iseither(h.flags, x));
     }
 
-    auto kh_key(kh_t* h, khint_t x)
+    auto kh_key(const(kh_t)* h, khint_t x)
     {
         return h.keys[x];
     }
 
-    auto kh_val(kh_t* h, khint_t x)
+    auto kh_val(const(kh_t)* h, khint_t x)
     {
         return h.vals[x];
     }
 
-    auto kh_begin(kh_t* h)
+    auto kh_begin(const(kh_t)* h)
     {
         return cast(khint_t) 0;
     }
 
-    auto kh_end(kh_t* h)
+    auto kh_end(const(kh_t)* h)
     {
         return h.n_buckets;
     }
 
-    auto kh_size(kh_t* h)
+    auto kh_size(const(kh_t)* h)
     {
         return h.size;
     }
@@ -337,8 +375,7 @@ template khash(KT, VT, bool kh_is_map = true)
 
 }
 
-/* --- BEGIN OF HASH FUNCTIONS --- */
-
+/** --- BEGIN OF HASH FUNCTIONS --- */
 template kh_hash(T)
 {
     auto kh_hash_func(T)(T key)
@@ -575,7 +612,7 @@ auto kh_foreach(kh_t* h, kvar, vvar, code)
 +/
 unittest
 {
-    import std.stdio : writeln;
+    import std.stdio : writeln, writefln;
 
     writeln("khash unit test");
 
@@ -594,4 +631,19 @@ unittest
     auto kh = khash!(uint, char).kh_t();
     kh[5] = 'J';
     writeln("Value: ", kh[5]);
+
+    kh[1] = 'O';
+    kh[99] = 'N';
+
+    writeln("foreach by key");
+    foreach(k; kh.byKey()) {
+        writefln("Key: %s", k);
+    }
+
+    writeln("Now an empty hash table:");
+    auto kh_empty = khash!(uint, char).kh_t();
+    foreach(k; kh_empty.byKey) {
+        writefln("Key: %s", k);
+    }
+
 }
