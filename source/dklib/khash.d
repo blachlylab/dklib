@@ -96,7 +96,9 @@ template khash(KT, VT, bool kh_is_map = true)
     alias __hash_func = kh_hash!KT.kh_hash_func;
     alias __hash_equal= kh_hash!KT.kh_hash_equal;
 
-    struct kh_t
+    alias kh_t = khash; /// klib uses 'kh_t' struct name
+
+    struct khash        // @suppress(dscanner.style.phobos_naming_convention)
     {
         khint_t n_buckets, size, n_occupied, upper_bound;
         khint32_t* flags;
@@ -121,7 +123,8 @@ template khash(KT, VT, bool kh_is_map = true)
         void opIndexAssign(VT val, KT key)
         {
             int absent;
-            auto x = khash!(uint, char).kh_put(&this, key, &absent);
+            //auto x = khash!(uint, char).kh_put(&this, key, &absent);
+            auto x = kh_put(&this, key, &absent);
             //khash!(uint, char).kh_value(kh, k) = 10;
             this.vals[x] = val;
         }
@@ -628,7 +631,7 @@ unittest
     
 //    khash!(uint, char).kh_destroy(kh);
 
-    auto kh = khash!(uint, char).kh_t();
+    auto kh = khash!(uint, char)();
     kh[5] = 'J';
     writeln("Value: ", kh[5]);
 
@@ -641,7 +644,7 @@ unittest
     }
 
     writeln("Now an empty hash table:");
-    auto kh_empty = khash!(uint, char).kh_t();
+    auto kh_empty = khash!(uint, char)();
     foreach(k; kh_empty.byKey) {
         writefln("Key: %s", k);
     }
