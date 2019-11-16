@@ -9,11 +9,11 @@ Comparison with emsi_containers HashMap:
 
 Time, in msec, for n=500,000 operations benchmarked on linux VM; ldc2 -release
 
-Operation | HashMap | khash
-----------+---------+------
-Insert    | 3573    | 2347
-Lookup (Serial)|145 | 26
-Lookup (Random)|282 | 84
+| Operation         | HashMap | khash |
+|-------------------|---------|-------|
+| Insert            | 3573    | 2347  |
+| Retrieve (Serial) | 145     | 26    |
+| Retrieve (Random) | 282     | 84    |
 
 ## Notes
 Key type may be numeric, C style string, D style string.
