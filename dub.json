@@ -5,5 +5,6 @@
 	"homepage": "http://github.com/blachlylab",
 	"license": "MIT",
 	"dependencies": {
-	}
+	},
+	"excludedSourceFiles": ["source/dklib/benchmark_khash.d"]
 }

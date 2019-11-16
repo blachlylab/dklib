@@ -26,7 +26,7 @@
 
 module dklib.khash;
 
-import std.traits : isNumeric;
+import std.traits : isNumeric, isSomeString, isSigned;
 import core.stdc.stdint;    // uint32_t, etc.
 
 /*!
@@ -119,6 +119,8 @@ private const double __ac_HASH_UPPER = 0.77;
 /// Straight port of khash's generic C approach
 template khash(KT, VT, bool kh_is_map = true)
 {
+    static assert(!isSigned!KT, "Numeric key types must be unsigned -- try uint instead of int, etc.");
+
     alias __hash_func = kh_hash!KT.kh_hash_func;
     alias __hash_equal= kh_hash!KT.kh_hash_equal;
 
@@ -160,6 +162,21 @@ template khash(KT, VT, bool kh_is_map = true)
         {
             auto x = kh_get(&this, key);
             kh_del(&this, x);
+        }
+
+        /// Get or create if does not exist; mirror built-in hashmap
+        /// https://dlang.org/spec/hash-map.html#inserting_if_not_present
+        ref VT require(KT key, lazy VT initval)
+        {
+            static assert (kh_is_map == true, "require() not sensible in a hash set");
+            auto x = kh_get(&this, key);
+            if (x == kh_end(&this)) {
+                // not present
+                int absent;
+                x = kh_put(&this, key, &absent);
+                this.vals[x] = initval;
+            }
+            return this.vals[x];
         }
 
         /// Return an InputRange over the keys.
@@ -407,6 +424,8 @@ template khash(KT, VT, bool kh_is_map = true)
 /** --- BEGIN OF HASH FUNCTIONS --- */
 template kh_hash(T)
 {
+pragma(inline, true)
+{
     auto kh_hash_func(T)(T key)
     if (is(T == uint) || is(T == uint32_t) || is(T == khint32_t))
     {
@@ -444,6 +463,23 @@ template kh_hash(T)
         return (strcmp(a, b) == 0);
     }
 
+    auto kh_hash_func(T)(T key)
+    if(isSomeString!T)
+    {
+        // rewrite __ac_X31_hash_string for D string/smart array
+        if (key.length == 0) return 0;
+        khint_t h = key[0];
+        for (int i=1; i<key.length; ++i)
+            h = (h << 5) - h + cast(khint_t) key[i];
+        return h;
+    }
+
+    bool kh_hash_equal(T)(T a, T b)
+    if(isSomeString!T)
+    {
+        return (a == b);
+    }
+
     auto __ac_Wang_hash(T)(T key)
     if (is(T == uint) || is(T == uint32_t) || is(T == khint32_t))
     {
@@ -458,7 +494,9 @@ template kh_hash(T)
 
     // TODO
     alias kh_int_hash_func2 = __ac_Wang_hash;
-}
+
+} // end pragma(inline, true)
+} // end template kh_hash
 
 /* --- END OF HASH FUNCTIONS --- */
 
@@ -643,7 +681,11 @@ unittest
 {
     import std.stdio : writeln, writefln;
 
-    writeln("khash unit test");
+    writeln("khash unit tests");
+
+    // test: numeric key type must be unsigned
+    assert(__traits(compiles, khash!(int, int)) is false);
+    assert(__traits(compiles, khash!(uint,int)) is true);
 
 //    auto kh = khash!(uint, char).kh_init();
 
@@ -659,20 +701,32 @@ unittest
 
     auto kh = khash!(uint, char)();
     kh[5] = 'J';
-    writeln("Value: ", kh[5]);
+    assert(kh[5] == 'J');
 
     kh[1] = 'O';
     kh[99] = 'N';
 
-    writeln("foreach by key");
-    foreach(k; kh.byKey()) {
-        writefln("Key: %s", k);
-    }
+    // test: foreach by key
+    /*foreach(k; kh.byKey())
+        writefln("Key: %s", k);*/
+    import std.array : array;
+    assert(kh.byKey().array == [5, 1, 99]);
 
-    writeln("Now an empty hash table:");
-    auto kh_empty = khash!(uint, char)();
-    foreach(k; kh_empty.byKey) {
-        writefln("Key: %s", k);
-    }
+    // test: byKey on Empty hash table
+    auto kh_empty = khash!(uint, char)(); // @suppress(dscanner.suspicious.unmodified)
+    assert(kh_empty.byKey.array == []);
 
+    // test: keytype string
+    auto kh_string = khash!(string, int)();
+    kh_string["test"] = 5;
+    assert( kh_string["test"] == 5 );
+
+    // test: valtype string
+    auto kh_valstring = khash!(uint, string)();
+    kh_valstring[42] = "Adams";
+    assert( kh_valstring[42] == "Adams" );
+
+    // test: require
+    const auto fw = kh_string.require("flammenwerfer", 21);
+    assert(fw == 21);
 }
