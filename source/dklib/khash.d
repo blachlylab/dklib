@@ -226,11 +226,13 @@ template khash(KT, VT, bool kh_is_map = true, bool useGC = true)
     khint_t kh_put(kh_t* h, KT key, int* ret);
     void kh_del(kh_t* h, khint_t x);
   
+    deprecated("kept for source-level homology; use D-style RAII")
     kh_t* kh_init()
     {
         return cast(kh_t*) kcalloc(1, kh_t.sizeof);
     }
   
+    deprecated("kept for source-level homology; kfree(h) will SIGSEGV when called as kh_destroy(&this)")
     void kh_destroy(kh_t* h)
     {
         if (h)
