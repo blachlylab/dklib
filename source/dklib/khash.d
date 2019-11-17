@@ -28,6 +28,7 @@ module dklib.khash;
 
 import std.traits : isNumeric, isSomeString, isSigned;
 import core.stdc.stdint;    // uint32_t, etc.
+import core.memory;         // GC
 
 /*!
   @header
@@ -117,7 +118,7 @@ alias kfree = free;
 private const double __ac_HASH_UPPER = 0.77;
 
 /// Straight port of khash's generic C approach
-template khash(KT, VT, bool kh_is_map = true)
+template khash(KT, VT, bool kh_is_map = true, bool useGC = true)
 {
     static assert(!isSigned!KT, "Numeric key types must be unsigned -- try uint instead of int, etc.");
 
@@ -135,6 +136,8 @@ template khash(KT, VT, bool kh_is_map = true)
 
         ~this()
         {
+            //kh_destroy(&this); // the free(h) at the end of kh_destroy will SIGSEGV
+            static if (useGC) GC.removeRange(this.keys);
             kfree(cast(void*) this.keys);
             kfree(cast(void*) this.flags);
             kfree(cast(void*) this.vals);
@@ -284,6 +287,10 @@ template khash(KT, VT, bool kh_is_map = true)
 				memset(new_flags, 0xaa, __ac_fsize(new_n_buckets) * khint32_t.sizeof);
 				if (h.n_buckets < new_n_buckets) {	/* expand */
 					KT *new_keys = cast(KT*)krealloc(cast(void *)h.keys, new_n_buckets * KT.sizeof);
+                    static if (useGC) {
+                        GC.addRange(new_keys, new_n_buckets * KT.sizeof);
+                        if (new_keys != h.keys) GC.removeRange(h.keys);
+                    }
 					if (!new_keys) { kfree(new_flags); return -1; }
 					h.keys = new_keys;
 					if (kh_is_map) {
@@ -323,7 +330,13 @@ template khash(KT, VT, bool kh_is_map = true)
 			}
 			if (h.n_buckets > new_n_buckets) { /* shrink the hash table */
 				h.keys = cast(KT*)krealloc(cast(void *)h.keys, new_n_buckets * KT.sizeof);
-				if (kh_is_map) h.vals = cast(VT*)krealloc(cast(void *)h.vals, new_n_buckets * VT.sizeof);
+				static if (kh_is_map) h.vals = cast(VT*)krealloc(cast(void *)h.vals, new_n_buckets * VT.sizeof);
+                static if (useGC) {
+                    GC.disable();
+                    GC.removeRange(h.keys);
+                    GC.addRange(h.keys, new_n_buckets * KT.sizeof);
+                    GC.enable();
+                }
 			}
 			kfree(h.flags); /* free the working space */
 			h.flags = new_flags;
