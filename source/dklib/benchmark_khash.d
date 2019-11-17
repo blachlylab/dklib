@@ -1,5 +1,6 @@
 /+dub.sdl:
 dependency "emsi_containers" version="~>0.7"
+dependency "dklib" path="../.."
 +/
 import khash;
 import containers;
