@@ -293,7 +293,7 @@ template khash(KT, VT, bool kh_is_map = true, bool useGC = true)
                     }
 					if (!new_keys) { kfree(new_flags); return -1; }
 					h.keys = new_keys;
-					if (kh_is_map) {
+					static if (kh_is_map) {
 						VT *new_vals = cast(VT*)krealloc(cast(void *)h.vals, new_n_buckets * VT.sizeof);
 						if (!new_vals) { kfree(new_flags); return -1; }
 						h.vals = new_vals;
@@ -308,7 +308,7 @@ template khash(KT, VT, bool kh_is_map = true, bool useGC = true)
 					VT val;
 					khint_t new_mask;
 					new_mask = new_n_buckets - 1;
-					if (kh_is_map) val = h.vals[j];
+					static if (kh_is_map) val = h.vals[j];
 					__ac_set_isdel_true(h.flags, j);
 					while (1) { /* kick-out process; sort of like in Cuckoo hashing */
 						khint_t k, i, step = 0;
@@ -318,11 +318,11 @@ template khash(KT, VT, bool kh_is_map = true, bool useGC = true)
 						__ac_set_isempty_false(new_flags, i);
 						if (i < h.n_buckets && __ac_iseither(h.flags, i) == 0) { /* kick out the existing element */
 							{ KT tmp = h.keys[i]; h.keys[i] = key; key = tmp; }
-							if (kh_is_map) { VT tmp = h.vals[i]; h.vals[i] = val; val = tmp; }
+							static if (kh_is_map) { VT tmp = h.vals[i]; h.vals[i] = val; val = tmp; }
 							__ac_set_isdel_true(h.flags, i); /* mark it as deleted in the old hash table */
 						} else { /* write the element and jump out of the loop */
 							h.keys[i] = key;
-							if (kh_is_map) h.vals[i] = val;
+							static if (kh_is_map) h.vals[i] = val;
 							break;
 						}
 					}
