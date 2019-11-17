@@ -137,7 +137,11 @@ template khash(KT, VT, bool kh_is_map = true, bool useGC = true)
         ~this()
         {
             //kh_destroy(&this); // the free(h) at the end of kh_destroy will SIGSEGV
-            static if (useGC) GC.removeRange(this.keys);
+            static if (useGC) {
+                GC.removeRange(this.keys);
+                static if (kh_is_map)
+                    GC.removeRange(this.vals);
+            }
             kfree(cast(void*) this.keys);
             kfree(cast(void*) this.flags);
             kfree(cast(void*) this.vals);
@@ -289,15 +293,19 @@ template khash(KT, VT, bool kh_is_map = true, bool useGC = true)
 				memset(new_flags, 0xaa, __ac_fsize(new_n_buckets) * khint32_t.sizeof);
 				if (h.n_buckets < new_n_buckets) {	/* expand */
 					KT *new_keys = cast(KT*)krealloc(cast(void *)h.keys, new_n_buckets * KT.sizeof);
+					if (!new_keys) { kfree(new_flags); return -1; }
                     static if (useGC) {
                         GC.addRange(new_keys, new_n_buckets * KT.sizeof);
                         if (new_keys != h.keys) GC.removeRange(h.keys);
                     }
-					if (!new_keys) { kfree(new_flags); return -1; }
 					h.keys = new_keys;
 					static if (kh_is_map) {
 						VT *new_vals = cast(VT*)krealloc(cast(void *)h.vals, new_n_buckets * VT.sizeof);
 						if (!new_vals) { kfree(new_flags); return -1; }
+                        static if (useGC) {
+                            GC.addRange(new_vals, new_n_buckets * VT.sizeof);
+                            if (new_vals != h.vals) GC.removeRange(h.vals);
+                        }
 						h.vals = new_vals;
 					}
 				} /* otherwise shrink */
@@ -337,6 +345,10 @@ template khash(KT, VT, bool kh_is_map = true, bool useGC = true)
                     GC.disable();
                     GC.removeRange(h.keys);
                     GC.addRange(h.keys, new_n_buckets * KT.sizeof);
+                    static if (kh_is_map) {
+                        GC.removeRange(h.vals);
+                        GC.addRange(h.vals, new_n_buckets * VT.sizeof);
+                    }
                     GC.enable();
                 }
 			}
