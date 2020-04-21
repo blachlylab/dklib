@@ -2,7 +2,8 @@
 dependency "emsi_containers" version="~>0.7"
 dependency "dklib" path="../.."
 +/
-import khash;
+import dklib.khash;
+import dklib.khashl;
 import containers;
 
 import std.datetime.stopwatch : StopWatch, AutoStart;
@@ -61,9 +62,11 @@ int main()
 
     testContainerInsert!(HashMap, "HashMap");
     testContainerInsert!(khash, "khash");
+    testContainerInsert!(khashl, "khashl");
 
     testContainerLookup!(HashMap, "HashMap");
     testContainerLookup!(khash, "khash");
+    testContainerLookup!(khashl, "khashl");
 
     return 0;
 }
