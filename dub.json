@@ -6,5 +6,18 @@
 	"license": "MIT",
 	"dependencies": {
 	},
-	"excludedSourceFiles": ["source/dklib/benchmark_khash.d"]
+	"configurations": [
+		{
+			"name": "default",
+			"targetType": "library",
+			"excludedSourceFiles": ["source/dklib/benchmark_khash.d"]
+		},
+		{
+			"name": "bench",
+			"targetType": "executable",
+			"dependencies": {
+				"emsi_containers":"~>0.7"
+			}
+		}
+	]
 }
