@@ -84,7 +84,8 @@ alias krealloc = realloc;
 
 alias kfree = free;
 
-/// Straight port of khash's generic C approach
+/// Straight port of khashl's generic C approach
+/// Can use cached-hashes for faster comparison of string key hashes 
 template khashl(KT, VT, bool kh_is_map = true, bool cached = false, bool useGC = true)
 {
     static assert(!isSigned!KT, "Numeric key types must be unsigned -- try uint instead of int, etc.");
@@ -135,7 +136,7 @@ template khashl(KT, VT, bool kh_is_map = true, bool cached = false, bool useGC =
             static if(cached) ins.hash = __hash_func(ins.key);
             auto x = kh_put(&this, ins, &absent);
             this.keys[x].val = val;
-            static if(cached) this.keys[x].hash = __hash_func(ins.key);
+            static if(cached) this.keys[x].hash = ins.hash;
         }
 
         /// remove key/value pair
@@ -162,7 +163,7 @@ template khashl(KT, VT, bool kh_is_map = true, bool cached = false, bool useGC =
                 int absent;
                 x = kh_put(&this, ins, &absent);
                 this.keys[x].val = initval;
-                static if(cached) this.keys[x].hash = __hash_func(ins.key);
+                static if(cached) this.keys[x].hash = ins.hash;
             }
             return this.keys[x].val;
         }
@@ -245,7 +246,11 @@ template khashl(KT, VT, bool kh_is_map = true, bool cached = false, bool useGC =
 		if (h.keys == null) return 0;
 		n_buckets = 1U << h.bits;
 		mask = n_buckets - 1U;
-		i = last = __kh_h2b(__hash_func((*key).key), h.bits);
+
+        /// if using caching, don't rehash key
+        static if(cached) i = last = __kh_h2b((*key).hash, h.bits);
+		else i = last = __kh_h2b(__hash_func((*key).key), h.bits);
+        
 		while (__kh_used(h.used, i) && !__hash_equal(h.keys[i], *key)) {
 			i = (i + 1U) & mask;
 			if (i == last) return n_buckets;
@@ -280,7 +285,11 @@ template khashl(KT, VT, bool kh_is_map = true, bool cached = false, bool useGC =
 			__kh_set_unused(h.used, j);
 			while (1) { /* kick-out process; sort of like in Cuckoo hashing */
 				khint_t i;
-				i = __kh_h2b(__hash_func(key.key), new_bits);
+
+                /// if using caching, don't rehash key
+                static if(cached) i = __kh_h2b(key.hash, new_bits);
+				else i = __kh_h2b(__hash_func(key.key), new_bits);
+
 				while (__kh_used(new_used, i)) i = (i + 1) & new_mask;
 				__kh_set_used(new_used, i);
 				if (i < n_buckets && __kh_used(h.used, i)) { /* kick out the existing element */
@@ -310,7 +319,12 @@ template khashl(KT, VT, bool kh_is_map = true, bool cached = false, bool useGC =
 			n_buckets = 1U<<h.bits;
 		} /* TODO: to implement automatically shrinking; resize() already support shrinking */
 		mask = n_buckets - 1;
-		i = last = __kh_h2b(__hash_func((*key).key), h.bits);
+
+        /// if using caching, don't rehash key
+        static if(cached) i = last = __kh_h2b((*key).hash, h.bits);
+		else i = last = __kh_h2b(__hash_func((*key).key), h.bits);
+
+
 		while (__kh_used(h.used, i) && !__hash_equal(h.keys[i], *key)) {
 			i = (i + 1U) & mask;
 			if (i == last) break;
@@ -334,7 +348,11 @@ template khashl(KT, VT, bool kh_is_map = true, bool cached = false, bool useGC =
 		while (1) {
 			j = (j + 1U) & mask;
 			if (j == i || !__kh_used(h.used, j)) break; /* j==i only when the table is completely full */
-			k = __kh_h2b(__hash_func(h.keys[j].key), h.bits);
+
+            /// if using caching, don't rehash key
+            static if(cached) k = __kh_h2b(h.keys[j].hash, h.bits);
+			else k = __kh_h2b(__hash_func(h.keys[j].key), h.bits);
+
 			if ((j > i && (k <= i || k > j)) || (j < i && (k <= i && k > j)))
 				h.keys[i] = h.keys[j], i = j;
 		}
@@ -434,6 +452,9 @@ pragma(inline, true)
 } // end pragma(inline, true)
 } // end template kh_hash
 
+/// In order to take advantage of cached-hashes
+/// our equality function will actually take the bucket type as opposed to just the key.
+/// This allows it to access both the store hash and the key itself.
 template kh_equal(T, bool cached)
 {
 pragma(inline,true)
@@ -457,14 +478,15 @@ pragma(inline,true)
         static if(cached) return (a.hash == b.hash) && (strcmp(a, b) == 0);
         else return (strcmp(a.key, b.key) == 0);
     }
+
     bool kh_hash_equal(T)(T a, T b)
     if(isSomeString!(typeof(__traits(getMember,T,"key"))))
     {
         static if(cached) return (a.hash == b.hash) && (a.key == b.key);
         else return (a.key == b.key);
     }
-}
-}
+} // end pragma(inline, true)
+} // end template kh_equal
 /* --- END OF HASH FUNCTIONS --- */
 
 /* Other convenient macros... */
