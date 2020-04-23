@@ -1,29 +1,25 @@
-/*  The MIT License
-
-    Copyright (c) 2008, 2009, 2011 by Attractive Chaos <attractor@live.co.uk>
-    Copyright (c) 2019 James S Blachly, MD <james.blachly@gmail.com>
-
-    Permission is hereby granted, free of charge, to any person obtaining
-    a copy of this software and associated documentation files (the
-    "Software"), to deal in the Software without restriction, including
-    without limitation the rights to use, copy, modify, merge, publish,
-    distribute, sublicense, and/or sell copies of the Software, and to
-    permit persons to whom the Software is furnished to do so, subject to
-    the following conditions:
-
-    The above copyright notice and this permission notice shall be
-    included in all copies or substantial portions of the Software.
-
-    THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
-    EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
-    MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
-    NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS
-    BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN
-    ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
-    CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-    SOFTWARE.
+/* The MIT License
+   Copyright (c) 2019 by Attractive Chaos <attractor@live.co.uk>
+   Copyright (c) 2019 James S Blachly, MD <james.blachly@gmail.com>
+   
+   Permission is hereby granted, free of charge, to any person obtaining
+   a copy of this software and associated documentation files (the
+   "Software"), to deal in the Software without restriction, including
+   without limitation the rights to use, copy, modify, merge, publish,
+   distribute, sublicense, and/or sell copies of the Software, and to
+   permit persons to whom the Software is furnished to do so, subject to
+   the following conditions:
+   The above copyright notice and this permission notice shall be
+   included in all copies or substantial portions of the Software.
+   THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+   EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+   MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+   NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS
+   BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN
+   ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
+   CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+   SOFTWARE.
 */
-
 module dklib.khashl;
 
 import std.traits : isNumeric, isSomeString, isSigned, hasMember;
@@ -84,8 +80,24 @@ alias krealloc = realloc;
 
 alias kfree = free;
 
-/// Straight port of khashl's generic C approach
-/// Can use cached-hashes for faster comparison of string key hashes 
+/*  Straight port of khashl's generic C approach
+    Khashl is hash table that performs deletions without tombstones 
+    The main benefit over khash is that it uses less memory however it is 
+    also faster than khash if no deletions are involved. 
+
+    Can use cached-hashes for faster comparison of string key hashes 
+    Attractive chaos has this to say about caching hash values (https://attractivechaos.wordpress.com/):
+
+        When we use long strings as keys, comparing two keys may take significant time.
+        This comparison is often unnecessary. Note that the hash of a string is a good 
+        summary of the string. If two strings are different, their hashes are often 
+        different. We can cache the hash and only compare two keys when their hashes are
+        equal. It is possible to implement the idea with any hash table implementations. 
+    
+    If hash-caching is used we use compile time statements to change the bucket type to include
+    the hash member. We also change the logic to make equality statements check hash equality before 
+    checking the key equalitys and the put and get methods to make sure they don't recompute the hashes.
+**/
 template khashl(KT, VT, bool kh_is_map = true, bool cached = false, bool useGC = true)
 {
     static assert(!isSigned!KT, "Numeric key types must be unsigned -- try uint instead of int, etc.");
@@ -122,7 +134,7 @@ template khashl(KT, VT, bool kh_is_map = true, bool cached = false, bool useGC =
         {
             Bucket ins;
             ins.key = key;
-            static if(cached) ins.hash = __hash_func(ins.key);
+            static if(cached) ins.hash = __hash_func(ins.key); //cache the hash
             auto x = kh_get(&this, ins);
             return this.keys[x].val;
         }
@@ -133,10 +145,10 @@ template khashl(KT, VT, bool kh_is_map = true, bool cached = false, bool useGC =
             int absent;
             Bucket ins;
             ins.key = key;
-            static if(cached) ins.hash = __hash_func(ins.key);
+            static if(cached) ins.hash = __hash_func(ins.key); //cache the hash
             auto x = kh_put(&this, ins, &absent);
             this.keys[x].val = val;
-            static if(cached) this.keys[x].hash = ins.hash;
+            static if(cached) this.keys[x].hash = ins.hash; //cache the hash
         }
 
         /// remove key/value pair
@@ -144,7 +156,7 @@ template khashl(KT, VT, bool kh_is_map = true, bool cached = false, bool useGC =
         {
             Bucket ins;
             ins.key = key;
-            static if(cached) ins.hash = __hash_func(ins.key);
+            static if(cached) ins.hash = __hash_func(ins.key); //cache the hash
             auto x = kh_get(&this, ins);
             kh_del(&this, x);
         }
@@ -156,14 +168,14 @@ template khashl(KT, VT, bool kh_is_map = true, bool cached = false, bool useGC =
             static assert (kh_is_map == true, "require() not sensible in a hash set");
             Bucket ins;
             ins.key = key;
-            static if(cached) ins.hash = __hash_func(ins.key);
+            static if(cached) ins.hash = __hash_func(ins.key); //cache the hash
             auto x = kh_get(&this, ins);
             if (x == kh_end(&this)) {
                 // not present
                 int absent;
                 x = kh_put(&this, ins, &absent);
                 this.keys[x].val = initval;
-                static if(cached) this.keys[x].hash = ins.hash;
+                static if(cached) this.keys[x].hash = ins.hash; //cache the hash
             }
             return this.keys[x].val;
         }
@@ -459,12 +471,16 @@ template kh_equal(T, bool cached)
 {
 pragma(inline,true)
 {
+    /// Assert that we are using a bucket type with key member
     static assert(hasMember!(T, "key"));
+
+    /// Assert that we are using a bucket type with hash member if using hash-caching
     static if(cached) static assert(hasMember!(T, "hash"));
 
     bool kh_hash_equal(T)(T a, T b)
     if (isNumeric!(typeof(__traits(getMember,T,"key"))))
     {
+        /// There is no benefit to caching hashes for integer keys (I think)
         static assert (cached == false, "No reason to cache hash for integer keys");
         return (a.key == b.key);
     }
@@ -475,6 +491,8 @@ pragma(inline,true)
         is(typeof(__traits(getMember,T,"key")) == const(char)) || 
         is(typeof(__traits(getMember,T,"key")) == immutable(char)))
     {
+        /// If using hash-caching we check equality of the hashes first 
+        /// before checking the equality of keys themselves 
         static if(cached) return (a.hash == b.hash) && (strcmp(a, b) == 0);
         else return (strcmp(a.key, b.key) == 0);
     }
@@ -482,6 +500,8 @@ pragma(inline,true)
     bool kh_hash_equal(T)(T a, T b)
     if(isSomeString!(typeof(__traits(getMember,T,"key"))))
     {
+        /// If using hash-caching we check equality of the hashes first 
+        /// before checking the equality of keys themselves 
         static if(cached) return (a.hash == b.hash) && (a.key == b.key);
         else return (a.key == b.key);
     }
@@ -489,192 +509,16 @@ pragma(inline,true)
 } // end template kh_equal
 /* --- END OF HASH FUNCTIONS --- */
 
-/* Other convenient macros... */
 
-/*!
-  @abstract Type of the hash table.
-  @param  name  Name of the hash table [symbol]
- */
-//#define khash_t(name) kh_##name##_t
-// Moved into template khash(KT, VT)
-
-/*! @function
-  @abstract     Initiate a hash table.
-  @param  name  Name of the hash table [symbol]
-  @return       Pointer to the hash table [khash_t(name)*]
- */
-//#define kh_init(name) kh_init_##name()
-// Moved into template khash(KT, VT)
-
-/*! @function
-  @abstract     Destroy a hash table.
-  @param  name  Name of the hash table [symbol]
-  @param  h     Pointer to the hash table [khash_t(name)*]
- */
-//#define kh_destroy(name, h) kh_destroy_##name(h)
-// Moved into template khash(KT, VT)
-
-/*! @function
-  @abstract     Reset a hash table without deallocating memory.
-  @param  name  Name of the hash table [symbol]
-  @param  h     Pointer to the hash table [khash_t(name)*]
- */
-//#define kh_clear(name, h) kh_clear_##name(h)
-// Moved into template khash(KT, VT)
-
-/*! @function
-  @abstract     Resize a hash table.
-  @param  name  Name of the hash table [symbol]
-  @param  h     Pointer to the hash table [khash_t(name)*]
-  @param  s     New size [khint_t]
- */
-//#define kh_resize(name, h, s) kh_resize_##name(h, s)
-// Moved into template khash(KT, VT)
-
-/*! @function
-  @abstract     Insert a key to the hash table.
-  @param  name  Name of the hash table [symbol]
-  @param  h     Pointer to the hash table [khash_t(name)*]
-  @param  k     Key [type of keys]
-  @param  r     Extra return code: -1 if the operation failed;
-                0 if the key is present in the hash table;
-                1 if the bucket is empty (never used); 2 if the element in
-				the bucket has been deleted [int*]
-  @return       Iterator to the inserted element [khint_t]
- */
-//#define kh_put(name, h, k, r) kh_put_##name(h, k, r)
-// Moved into template khash(KT, VT)
-
-/*! @function
-  @abstract     Retrieve a key from the hash table.
-  @param  name  Name of the hash table [symbol]
-  @param  h     Pointer to the hash table [khash_t(name)*]
-  @param  k     Key [type of keys]
-  @return       Iterator to the found element, or kh_end(h) if the element is absent [khint_t]
- */
-//#define kh_get(name, h, k) kh_get_##name(h, k)
-// Moved into template khash(KT, VT)
-
-/*! @function
-  @abstract     Remove a key from the hash table.
-  @param  name  Name of the hash table [symbol]
-  @param  h     Pointer to the hash table [khash_t(name)*]
-  @param  k     Iterator to the element to be deleted [khint_t]
- */
-//#define kh_del(name, h, k) kh_del_##name(h, k)
-// Moved into template khash(KT, VT)
-
-/*! @function
-  @abstract     Test whether a bucket contains data.
-  @param  h     Pointer to the hash table [khash_t(name)*]
-  @param  x     Iterator to the bucket [khint_t]
-  @return       1 if containing data; 0 otherwise [int]
- */
-//#define kh_exist(h, x) (!__ac_iseither((h).flags, (x)))
-// Moved into template khash(KT, VT)
-
-/*! @function
-  @abstract     Get key given an iterator
-  @param  h     Pointer to the hash table [khash_t(name)*]
-  @param  x     Iterator to the bucket [khint_t]
-  @return       Key [type of keys]
- */
-//#define kh_key(h, x) ((h).keys[x])
-// Moved into template khash(KT, VT)
-
-/*! @function
-  @abstract     Get value given an iterator
-  @param  h     Pointer to the hash table [khash_t(name)*]
-  @param  x     Iterator to the bucket [khint_t]
-  @return       Value [type of values]
-  @discussion   For hash sets, calling this results in segfault.
- */
-//#define kh_val(h, x) ((h).vals[x])
-// Moved into template khash(KT, VT)
-
-/*! @function
-  @abstract     Alias of kh_val()
- */
-//#define kh_value(h, x) ((h).vals[x])
-// Moved into template khash(KT, VT)
-
-/*! @function
-  @abstract     Get the start iterator
-  @param  h     Pointer to the hash table [khash_t(name)*]
-  @return       The start iterator [khint_t]
- */
-//#define kh_begin(h) (khint_t)(0)
-// Moved into template khash(KT, VT)
-
-/*! @function
-  @abstract     Get the end iterator
-  @param  h     Pointer to the hash table [khash_t(name)*]
-  @return       The end iterator [khint_t]
- */
-//#define kh_end(h) ((h).n_buckets)
-// Moved into template khash(KT, VT)
-
-/*! @function
-  @abstract     Get the number of elements in the hash table
-  @param  h     Pointer to the hash table [khash_t(name)*]
-  @return       Number of elements in the hash table [khint_t]
- */
-//#define kh_size(h) ((h).size)
-// Moved into template khash(KT, VT)
-
-/*! @function
-  @abstract     Get the number of buckets in the hash table
-  @param  h     Pointer to the hash table [khash_t(name)*]
-  @return       Number of buckets in the hash table [khint_t]
- */
-//#define kh_n_buckets(h) ((h).n_buckets)
-// Moved into template khash(KT, VT)
-
-/++ foreach: TODO
-
-/*! @function
-  @abstract     Iterate over the entries in the hash table
-  @param  h     Pointer to the hash table [khash_t(name)*]
-  @param  kvar  Variable to which key will be assigned
-  @param  vvar  Variable to which value will be assigned
-  @param  code  Block of code to execute
- */
-auto kh_foreach(kh_t* h, kvar, vvar, code)
-{
-    khint_t __i;
-    for (__i = kh_begin(h); __i != kh_end(h); ++__i) {
-        if (!kh_exist(h, __i)) continue;
-        kvar = kh_key(h, __i);
-        vvar = kh_val(h, __i);
-        code;
-    }
-}
-
-/*! @function
-  @abstract     Iterate over the values in the hash table
-  @param  h     Pointer to the hash table [khash_t(name)*]
-  @param  vvar  Variable to which value will be assigned
-  @param  code  Block of code to execute
- */
- auto kh_foreach_value(kh_t* h, vvar, code)
- {
-     khint_t __i;
-     for (__i = kh_begin(h); __i != kh_end(h); ++__i) {
-         if (!kh_exist(h, __i)) continue;
-         vvar = kh_val(h, __i);
-         code;
-     }
- }
-+/
 unittest
 {
     import std.stdio : writeln, writefln;
 
-    writeln("khash unit tests");
+    writeln("khashl unit tests");
 
     // test: numeric key type must be unsigned
-    assert(__traits(compiles, khash!(int, int)) is false);
-    assert(__traits(compiles, khash!(uint,int)) is true);
+    assert(__traits(compiles, khashl!(int, int)) is false);
+    assert(__traits(compiles, khashl!(uint,int)) is true);
 
 //    auto kh = khash!(uint, char).kh_init();
 
@@ -688,7 +532,7 @@ unittest
     
 //    khash!(uint, char).kh_destroy(kh);
 
-    auto kh = khash!(uint, char)();
+    auto kh = khashl!(uint, char)();
     kh[5] = 'J';
     assert(kh[5] == 'J');
 
@@ -699,19 +543,19 @@ unittest
     /*foreach(k; kh.byKey())
         writefln("Key: %s", k);*/
     import std.array : array;
-    assert(kh.byKey().array == [5, 1, 99]);
+    assert(kh.byKey().array == [1, 99, 5]);
 
     // test: byKey on Empty hash table
-    auto kh_empty = khash!(uint, char)(); // @suppress(dscanner.suspicious.unmodified)
+    auto kh_empty = khashl!(uint, char)(); // @suppress(dscanner.suspicious.unmodified)
     assert(kh_empty.byKey.array == []);
 
     // test: keytype string
-    auto kh_string = khash!(string, int)();
+    auto kh_string = khashl!(string, int)();
     kh_string["test"] = 5;
     assert( kh_string["test"] == 5 );
 
     // test: valtype string
-    auto kh_valstring = khash!(uint, string)();
+    auto kh_valstring = khashl!(uint, string)();
     kh_valstring[42] = "Adams";
     assert( kh_valstring[42] == "Adams" );
 
