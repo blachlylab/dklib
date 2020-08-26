@@ -24,3 +24,4 @@
 module dklib;
 
 public import dklib.khash;
+public import dklib.khashl;

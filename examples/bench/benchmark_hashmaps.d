@@ -2,7 +2,8 @@
 dependency "emsi_containers" version="~>0.7"
 dependency "dklib" path="../.."
 +/
-import khash;
+import dklib.khash;
+import dklib.khashl;
 import containers;
 
 import std.datetime.stopwatch : StopWatch, AutoStart;
@@ -17,9 +18,14 @@ int main()
 
     enum NUMBER_OF_ITEMS = 500_000;
 
-    void testContainerInsert(alias Container, string ContainerName)()
+    void testContainerInsert(alias Container, string ContainerName, bool cached = false)()
     {
-        auto c = Container!(string, int)();
+        static if(cached){
+            static assert(ContainerName == "khashl (cached)");
+            auto c = Container!(string, int,true,true,true)();
+        }else{
+            auto c = Container!(string, int)();
+        }
 
         StopWatch sw = StopWatch(AutoStart.yes);
         foreach (i; 0 .. NUMBER_OF_ITEMS)
@@ -61,9 +67,12 @@ int main()
 
     testContainerInsert!(HashMap, "HashMap");
     testContainerInsert!(khash, "khash");
+    testContainerInsert!(khashl, "khashl");
+    testContainerInsert!(khashl, "khashl (cached)",true);
 
     testContainerLookup!(HashMap, "HashMap");
     testContainerLookup!(khash, "khash");
+    testContainerLookup!(khashl, "khashl");
 
     return 0;
 }
