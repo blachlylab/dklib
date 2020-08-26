@@ -484,7 +484,7 @@ pragma(inline, true)
         return __ac_X31_hash_string(key);
     }
 
-    bool kh_hash_equal(T)(T* a, T* b)
+    bool kh_hash_equal(T)(in T* a, in T* b)
     if(is(T == char) || is(T == const(char)) || is(T == immutable(char)))
     {
         return (strcmp(a, b) == 0);
@@ -756,4 +756,7 @@ unittest
     // test: require
     const auto fw = kh_string.require("flammenwerfer", 21);
     assert(fw == 21);
+
+    // test: can instantiate with char* key
+    { khash!(char*, int) _; }
 }
