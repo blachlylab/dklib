@@ -471,13 +471,6 @@ pragma(inline, true)
         return cast(khint32_t) ((key)>>33^(key)^(key)<<11);
     }
 
-    khint_t __ac_X31_hash_string(const(char)* s)
-    {
-        khint_t h = cast(khint_t)*s;
-        if (h) for  (++s; *s; ++s) h = (h << 5) - h + cast(khint_t)*s;
-        return h;
-    }
-    
     auto kh_hash_func(T)(T* key)
     if(is(T == char) || is(T == const(char)) || is(T == immutable(char)))
     {
@@ -488,17 +481,6 @@ pragma(inline, true)
     if(is(T == char) || is(T == const(char)) || is(T == immutable(char)))
     {
         return (strcmp(a, b) == 0);
-    }
-
-    auto kh_hash_func(T)(T key)
-    if(isSomeString!T)
-    {
-        // rewrite __ac_X31_hash_string for D string/smart array
-        if (key.length == 0) return 0;
-        khint_t h = key[0];
-        for (int i=1; i<key.length; ++i)
-            h = (h << 5) - h + cast(khint_t) key[i];
-        return h;
     }
 
     bool kh_hash_equal(T)(T a, T b)
@@ -523,6 +505,27 @@ pragma(inline, true)
     alias kh_int_hash_func2 = __ac_Wang_hash;
 
 } // end pragma(inline, true)
+
+    khint_t __ac_X31_hash_string(const(char)* s)
+    {
+        version (DigitalMars) {} else pragma(inline, true);
+        khint_t h = cast(khint_t)*s;
+        if (h) for  (++s; *s; ++s) h = (h << 5) - h + cast(khint_t)*s;
+        return h;
+    }
+
+    auto kh_hash_func(T)(T key)
+    if(isSomeString!T)
+    {
+        // rewrite __ac_X31_hash_string for D string/smart array
+        version (DigitalMars) {} else pragma(inline, true);
+        if (key.length == 0) return 0;
+        khint_t h = key[0];
+        for (int i=1; i<key.length; ++i)
+            h = (h << 5) - h + cast(khint_t) key[i];
+        return h;
+    }
+
 } // end template kh_hash
 
 /* --- END OF HASH FUNCTIONS --- */
