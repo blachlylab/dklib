@@ -6,5 +6,10 @@
 	"license": "MIT",
 	"dependencies": {
 	},
+	"buildTypes": {
+		"unittest-inline": {
+			"buildOptions": ["unittests", "optimize", "inline"]
+		}
+	},
 	"excludedSourceFiles": ["source/dklib/benchmark_khash.d"]
 }
