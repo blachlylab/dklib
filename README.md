@@ -1,19 +1,27 @@
 Library of efficient algorithms and data structures ported to templatized D
 from attractivechaos' generic C approach: https://github.com/attractivechaos/klib
 
-# khash
+# khash & khashl
 
 ## Fast
 
 Comparison with [emsi containers](https://github.com/dlang-community/containers) HashMap:
 
-Time, in msec, for n=500,000 operations benchmarked on linux VM; ldc2 -release
+Time, in msec, for n=500,000 operations with uint keys benchmarked on WSL; ldc2 -release
 
-| Operation         | HashMap | khash |
-|-------------------|---------|-------|
-| Insert            | 3573    | 2347  |
-| Retrieve (Serial) | 145     | 26    |
-| Retrieve (Random) | 282     | 84    |
+| Operation         | HashMap | khash | khashl |
+|-------------------|---------|-------|--------|
+| Insert            | 1168    | 411   | 401    |
+| Retrieve (Serial) | 83      | 20    | 110    |
+| Retrieve (Random) | 198     | 91    | 134    |
+
+Time, in msec, for n=500,000 operations with string keys benchmarked on WSL; ldc2 -release
+
+| Operation         | HashMap | khash | khashl | khashl (cached) |
+|-------------------|---------|-------|--------|-----------------|
+| Insert            | 1727    | 782   | 903    | 494             |
+| Retrieve (Serial) | 232     | 261   | 267    | 240             |
+| Retrieve (Random) | 404     | 420   | 422    | 422             |
 
 
 ## Notes
@@ -26,6 +34,10 @@ pass optional third template parameter `kh_is_map = false`.
 By default, memory allocated by the hashmap will be scanned by the GC.
 (pass optional fourth template parameter `useGC = false` to disable)
 
+For ```khashl```, hash caching can be enabled by passing an optional fourth
+ template parameter `cached = true`. This allows faster insertions for 
+ string keys.
+
 Can undergo static initialization (e.g. define as struct member
 with no extra init code needed in struct ctor), unlike
 [emsi containers](https://github.com/dlang-community/containers) HashMap.
@@ -36,6 +48,8 @@ with no extra init code needed in struct ctor), unlike
 ### Declaration
 ```D
 auto map = khash!(keytype, valuetype);
+auto map2 = khashl!(keytype, valuetype);
+auto map3 = khashl!(string, valuetype,true,true); // for hash-caching with strings
 ```
 
 ### Assignment / Insert

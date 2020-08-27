@@ -11,6 +11,7 @@ import std.stdio;
 import std.uuid : randomUUID;
 
 string global_x; /// for benchmarking to prevent elision(?)
+uint global_y;
 
 int main()
 {
@@ -18,38 +19,55 @@ int main()
 
     enum NUMBER_OF_ITEMS = 500_000;
 
-    void testContainerInsert(alias Container, string ContainerName, bool cached = false)()
+    void testContainerInsert(T, alias Container, string ContainerName, bool cached = false)()
+    if(is(T == uint) || is(T == string))
     {
         static if(cached){
             static assert(ContainerName == "khashl (cached)");
-            auto c = Container!(string, int,true,true,true)();
+            static if(is(T == uint)) auto c = Container!(uint, string,true,true,true)();
+            else auto c = Container!(string, uint,true,true,true)();
         }else{
-            auto c = Container!(string, int)();
+            static if(is(T == uint)) auto c = Container!(uint, string)();
+            else auto c = Container!(string, uint)();
         }
 
         StopWatch sw = StopWatch(AutoStart.yes);
         foreach (i; 0 .. NUMBER_OF_ITEMS)
             //c.insert(i);
-            c[randomUUID().toString] = i;
+            static if(is(T == uint)) c[i] = randomUUID().toString;
+            else c[randomUUID().toString] = i;
         sw.stop();
-        writeln("Inserts for ", ContainerName, " finished in ",
+        writeln(T.stringof~" inserts for ", ContainerName, " finished in ",
             sw.peek.total!"msecs", " milliseconds.");
     }
 
-    void testContainerLookup(alias Container, string ContainerName)()
+    void testContainerLookup(T, alias Container, string ContainerName, bool cached = false)()
+    if(is(T == uint) || is(T == string))
     {
         import std.random : uniform;
 
-        auto c = Container!(uint, string)();
+        static if(cached){
+            static assert(ContainerName == "khashl (cached)");
+            static if(is(T == uint)) auto c = Container!(uint, string,true,true,true)();
+            else auto c = Container!(string, uint,true,true,true)();
+        }else{
+            static if(is(T == uint)) auto c = Container!(uint, string)();
+            else auto c = Container!(string, uint)();
+        }
         // untimed insert
+        string[] items = new string[NUMBER_OF_ITEMS];
         foreach (i; 0 .. NUMBER_OF_ITEMS)
-            c[i] = randomUUID().toString;
+            items[i] = randomUUID().toString;
+        foreach (uint i,item; items)
+            static if(is(T == uint)) c[i] = item;
+            else c[item] = i;
         StopWatch sw = StopWatch(AutoStart.yes);
         // serial lookups
         foreach (i; 0 .. NUMBER_OF_ITEMS)
-            global_x = c[i];
+            static if(is(T == uint)) global_x = c[i];
+            else global_y = c[items[i]];
         sw.stop();
-        writeln("Serial Lookups for ", ContainerName, " finished in ",
+        writeln("Serial "~T.stringof~" lookups for ", ContainerName, " finished in ",
             sw.peek.total!"msecs", " milliseconds.");
         
         sw.reset();
@@ -57,22 +75,34 @@ int main()
         // random lookups
         sw.start();
         foreach(i; 0 .. NUMBER_OF_ITEMS)
-            global_x = c[ uniform(0, NUMBER_OF_ITEMS) ];
+            static if(is(T == uint)) global_x = c[ uniform(0, NUMBER_OF_ITEMS) ];
+            else global_y = c[ items[uniform(0, NUMBER_OF_ITEMS)] ];
         sw.stop();
-        writeln("Random lookups for ", ContainerName, " finished in ",
+        writeln("Random "~ T.stringof ~" lookups for ", ContainerName, " finished in ",
             sw.peek.total!"msecs", " milliseconds.");
         
         writeln("Confirming stored value of last lookup: ", global_x);
     }
 
-    testContainerInsert!(HashMap, "HashMap");
-    testContainerInsert!(khash, "khash");
-    testContainerInsert!(khashl, "khashl");
-    testContainerInsert!(khashl, "khashl (cached)",true);
+    testContainerInsert!(uint, HashMap, "HashMap");
+    testContainerInsert!(uint, khash, "khash");
+    testContainerInsert!(uint, khashl, "khashl");
+    // testContainerInsert!(uint, khashl, "khashl (cached)",true);
 
-    testContainerLookup!(HashMap, "HashMap");
-    testContainerLookup!(khash, "khash");
-    testContainerLookup!(khashl, "khashl");
+    testContainerInsert!(string, HashMap, "HashMap");
+    testContainerInsert!(string, khash, "khash");
+    testContainerInsert!(string, khashl, "khashl");
+    testContainerInsert!(string, khashl, "khashl (cached)",true);
+
+    testContainerLookup!(uint, HashMap, "HashMap");
+    testContainerLookup!(uint, khash, "khash");
+    testContainerLookup!(uint, khashl, "khashl");
+    // testContainerLookup!(uint, khashl, "khashl (cached)",true);
+
+    testContainerLookup!(string, HashMap, "HashMap");
+    testContainerLookup!(string, khash, "khash");
+    testContainerLookup!(string, khashl, "khashl");
+    testContainerLookup!(string, khashl, "khashl (cached)",true);
 
     return 0;
 }
