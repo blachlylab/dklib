@@ -477,7 +477,7 @@ pragma(inline, true)
         return __ac_X31_hash_string(key);
     }
 
-    bool kh_hash_equal(T)(T* a, T* b)
+    bool kh_hash_equal(T)(scope const T* a, scope const T* b)
     if(is(T == char) || is(T == const(char)) || is(T == immutable(char)))
     {
         return (strcmp(a, b) == 0);
@@ -759,4 +759,16 @@ unittest
     // test: require
     const auto fw = kh_string.require("flammenwerfer", 21);
     assert(fw == 21);
+
+    // test: kh_hash_equal template type qualifiers and constraints
+    {
+        // test: can instantiate with char* key
+        // (Fails without 'const' qualifier on kh_hash_equal
+        { khash!(char*, int) _; }
+
+        string s = "Hello";
+        string t = "Hel" ~ "lo";
+        assert( kh_hash!(immutable char).kh_hash_equal(s.ptr, t.ptr) );
+        assert( kh_hash!(string).kh_hash_equal(s, t) );
+    }
 }
